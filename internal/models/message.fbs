@@ -1,0 +1,22 @@
+// message.fbs
+namespace ReverseWebsockify;
+
+// actions:
+// Connect: websockify server requiring service side agent establish connection with connection_id
+// Established: service side agent notify websockify server connection_id is connected
+// Forward: forward payload for connection_id, used by both sides;
+// Close: close connection of connection_id, used by both sides;
+enum Action : byte { Connect = 0, Established, Forward, Close }
+
+table Header {
+  action: Action;
+  // connection_id is unique inside one websocket session
+  connection_id: uint64;
+}
+
+table Message {
+  header: Header;
+  payload: [ubyte];
+}
+
+root_type Message;

@@ -1,0 +1,7 @@
+# 建议使用nginx反向代理套上SSL，并且使用客户端证书鉴权后，再暴露到公网
+http_server_endpoint = "127.0.0.1:39000"
+
+[remote_service.LKLAFA151NA774655]
+local_listen_endpoint = "0.0.0.0:39036"
+[remote_service.LKLAFA155MA767657]
+local_listen_endpoint = "0.0.0.0:39034"
