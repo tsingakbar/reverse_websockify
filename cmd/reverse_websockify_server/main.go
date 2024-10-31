@@ -294,6 +294,10 @@ func (forwarder *reverseWebsockifyForwarder) onNewServiceSideConnection(
 }
 
 func (forwarder *reverseWebsockifyForwarder) serviceSideWebsocketHandler(w http.ResponseWriter, r *http.Request) {
+	if _, ok := forwarder.confRemoteServices[r.URL.Path]; !ok {
+		http.Error(w, "unknown remote service", http.StatusForbidden)
+		return
+	}
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
