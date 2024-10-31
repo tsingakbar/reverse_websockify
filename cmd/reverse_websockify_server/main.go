@@ -199,6 +199,7 @@ func (session *serviceSideSession) handleClientSideNewConn(connTCP net.Conn) {
 	session.notifyServiceSide(ReverseWebsockify.ActionConnect, connID)
 	// NOTE: only after remote service side notified us the connection is established,
 	//       then we can forward client side message to remote service side.
+	// TODO(richieyu) add a timeout waiting for the estashlish notify to deal with buggy agent.
 }
 
 func (session *serviceSideSession) handleRemoteServiceSideEstablishedConnectionForClient(

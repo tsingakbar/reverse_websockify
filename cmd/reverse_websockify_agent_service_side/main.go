@@ -114,6 +114,8 @@ func (client *websockifyClient) dispatchIncomeWebsockifyMsg() {
 }
 
 func (client *websockifyClient) forwardLocalServiceToWebsockify(connID uint64) {
+	defer client.notifyWebsockifySide(ReverseWebsockify.ActionClose, connID)
+
 	log.Printf("local service connection[%d] connecting to %s...", connID, *localServiceAddr)
 	connLocalService, err := net.Dial("tcp", *localServiceAddr)
 	if err != nil {
@@ -171,8 +173,7 @@ func (client *websockifyClient) closeLocalServiceConn(connID uint64) {
 
 	if ok {
 		connLocalService.Close()
-		log.Printf("local service connection[%d] closed, will notify websockify side", connID)
-		client.notifyWebsockifySide(ReverseWebsockify.ActionClose, connID)
+		log.Printf("local service connection[%d] closed", connID)
 	}
 }
 
