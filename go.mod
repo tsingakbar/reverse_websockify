@@ -1,4 +1,4 @@
-module github.com/novnc/websockify-other/websockify
+module github.com/tsingakbar/reverse_websockify
 
 go 1.16
 

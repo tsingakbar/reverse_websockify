@@ -13,7 +13,8 @@ import (
 	"github.com/BurntSushi/toml"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
-	"github.com/novnc/websockify-other/websockify/internal/models/ReverseWebsockify"
+	"github.com/tsingakbar/reverse_websockify/internal/models/ReverseWebsockify"
+	"github.com/tsingakbar/reverse_websockify/internal/models/lockedwebsocket"
 )
 
 type configRemoteService struct {
@@ -28,7 +29,7 @@ type config struct {
 type clientSideSession struct {
 	remoteServiceID string
 	connID          uint64
-	serviceSideConn *websocket.Conn
+	serviceSideConn *lockedwebsocket.Conn
 	clientSideConn  net.Conn
 }
 
@@ -83,7 +84,7 @@ type serviceSideSession struct {
 	peerAddrInfo       string
 	mtx                sync.Mutex
 	connCounter        uint64
-	serviceSideConn    *websocket.Conn
+	serviceSideConn    *lockedwebsocket.Conn
 	clientSideSessions map[uint64]*clientSideSession
 }
 
@@ -268,7 +269,7 @@ func (forwarder *reverseWebsockifyForwarder) listenLocalEndpoints() {
 }
 
 func (forwarder *reverseWebsockifyForwarder) onNewServiceSideConnection(
-	remoteServiceID string, conn *websocket.Conn, peerAddrInfo string) {
+	remoteServiceID string, conn *lockedwebsocket.Conn, peerAddrInfo string) {
 	newServiceSideSession := &serviceSideSession{
 		remoteServiceID:    remoteServiceID,
 		since:              time.Now(),
@@ -309,7 +310,7 @@ func (forwarder *reverseWebsockifyForwarder) serviceSideWebsocketHandler(w http.
 	if len(peerAddrInfo) == 0 {
 		peerAddrInfo = wsConn.RemoteAddr().String()
 	}
-	go forwarder.onNewServiceSideConnection(r.URL.Path, wsConn, peerAddrInfo)
+	go forwarder.onNewServiceSideConnection(r.URL.Path, lockedwebsocket.CreateConn(wsConn), peerAddrInfo)
 }
 
 func (forwarder *reverseWebsockifyForwarder) statHandler(w http.ResponseWriter, _ *http.Request) {

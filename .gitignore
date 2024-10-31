@@ -1,2 +1,4 @@
-*.pem
-.vscode/
+/*.pem
+/.vscode/
+/reverse_websockify_agent_service_side
+/reverse_websockify_server

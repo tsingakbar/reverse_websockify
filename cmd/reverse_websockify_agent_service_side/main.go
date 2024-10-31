@@ -14,7 +14,8 @@ import (
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
-	"github.com/novnc/websockify-other/websockify/internal/models/ReverseWebsockify"
+	"github.com/tsingakbar/reverse_websockify/internal/models/ReverseWebsockify"
+	"github.com/tsingakbar/reverse_websockify/internal/models/lockedwebsocket"
 )
 
 var (
@@ -59,7 +60,7 @@ func loadTLSConfig(certFile, keyFile, caFile string) *tls.Config {
 }
 
 type websockifyClient struct {
-	websockifyConn    *websocket.Conn
+	websockifyConn    *lockedwebsocket.Conn
 	mtx               sync.Mutex
 	localServiceConns map[uint64]net.Conn
 }
@@ -76,12 +77,13 @@ func (client *websockifyClient) connectWebsockifyAndServe() {
 			TLSClientConfig: loadTLSConfig(*clientCertPath, *clientKeyPath, *caCertPath),
 		}
 	}
-	client.websockifyConn, _, err = dialer.Dial(*websockifyAddr, nil)
+	wsConn, _, err := dialer.Dial(*websockifyAddr, nil)
 	if err != nil {
 		log.Printf("Error connecting to WebSocket server: %s", err.Error())
 		return
 	}
-	defer client.websockifyConn.Close()
+	defer wsConn.Close()
+	client.websockifyConn = lockedwebsocket.CreateConn(wsConn)
 	client.dispatchIncomeWebsockifyMsg()
 }
 
