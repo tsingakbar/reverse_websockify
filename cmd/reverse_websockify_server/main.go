@@ -38,7 +38,7 @@ func (session *clientSideSession) forwardClientToService() {
 	for {
 		n, err := session.clientSideConn.Read(tcpBuffer[0:])
 		if err != nil {
-			log.Printf("remote service[%s][%d] <= TCP.Read() failed: %s", session.remoteServiceID, session.connID, err)
+			log.Printf("service[%s][%d] <= TCP.Read() failed: %s", session.remoteServiceID, session.connID, err)
 			return
 		}
 		fbBuilder := flatbuffers.NewBuilder(0)
@@ -58,7 +58,7 @@ func (session *clientSideSession) forwardClientToService() {
 		fbBuilder.Finish(messageEndAt)
 
 		if err := session.serviceSideConn.WriteMessage(websocket.BinaryMessage, fbBuilder.FinishedBytes()); err != nil {
-			log.Printf("remote service[%s][%d] <= websocket.WriteMessage() failed: %s",
+			log.Printf("service[%s][%d] <= websocket.WriteMessage() failed: %s",
 				session.remoteServiceID, session.connID, err)
 			return
 		}
@@ -72,7 +72,7 @@ func (session *clientSideSession) closeConn() {
 
 func (session *clientSideSession) forwardServiceToClient(payloadBytes []byte) error {
 	if _, err := session.clientSideConn.Write(payloadBytes); err != nil {
-		return fmt.Errorf("remote service[%s][%d] => client tcp.Write() failed: %s",
+		return fmt.Errorf("service[%s][%d] => client tcp.Write() failed: %s",
 			session.remoteServiceID, session.connID, err)
 	}
 	return nil
@@ -97,8 +97,8 @@ func (session *serviceSideSession) heartbeatPing() {
 		case <-ticker.C:
 			err := session.serviceSideConn.WriteMessage(websocket.PingMessage, []byte{})
 			if err != nil {
-				log.Printf("remote service[%s] => websocket.WriteMessage(Ping) failed: %s",
-					session.remoteServiceID, err)
+				log.Printf("service[%s@%p] <= websocket.WriteMessage(Ping) failed: %s",
+					session.remoteServiceID, session, err)
 				return
 			}
 		}
@@ -125,7 +125,7 @@ func (session *serviceSideSession) forwardServiceToClients() {
 	for {
 		websocketMsgType, websocketMsgBytes, err := session.serviceSideConn.ReadMessage()
 		if err != nil {
-			log.Printf("remote service[%s] => websocket.ReadMessage() failed: %s", session.remoteServiceID, err)
+			log.Printf("service[%s@%p] => websocket.ReadMessage() failed: %s", session.remoteServiceID, session, err)
 			return
 		}
 		if websocketMsgType != websocket.BinaryMessage {
@@ -176,7 +176,8 @@ func (session *serviceSideSession) notifyServiceSide(action ReverseWebsockify.Ac
 	fbBuilder.Finish(messageEndAt)
 
 	if err := session.serviceSideConn.WriteMessage(websocket.BinaryMessage, fbBuilder.FinishedBytes()); err != nil {
-		log.Printf("%s[%d]: websocket.WriteMessage() failed: %s", session.remoteServiceID, connID, err)
+		log.Printf("service[%s@%p][%d] <= websocket.WriteMessage(%s) failed: %s",
+			session.remoteServiceID, session, connID, action.String(), err)
 		return
 	}
 }
@@ -194,8 +195,8 @@ func (session *serviceSideSession) handleClientSideNewConn(connTCP net.Conn) {
 	session.clientSideSessions[connID] = clientSideSession
 	session.mtx.Unlock()
 
-	log.Printf("remote service[%s][%d] <= accepted new client side connection, will notify remote service side",
-		session.remoteServiceID, connID)
+	log.Printf("service[%s@%p][%d] <= accepted new client side connection, will notify remote service side",
+		session.remoteServiceID, session, connID)
 	session.notifyServiceSide(ReverseWebsockify.ActionConnect, connID)
 	// NOTE: only after remote service side notified us the connection is established,
 	//       then we can forward client side message to remote service side.
@@ -204,8 +205,8 @@ func (session *serviceSideSession) handleClientSideNewConn(connTCP net.Conn) {
 
 func (session *serviceSideSession) handleRemoteServiceSideEstablishedConnectionForClient(
 	clientSideSession *clientSideSession, connID uint64) {
-	log.Printf("remote service[%s][%d] => established upper connection, will forward client side data to it",
-		session.remoteServiceID, connID)
+	log.Printf("service[%s@%p][%d] => established upper connection, will forward client side data to it",
+		session.remoteServiceID, session, connID)
 	clientSideSession.forwardClientToService()
 	session.closeClientSideConn(connID)
 }
@@ -220,8 +221,8 @@ func (session *serviceSideSession) closeClientSideConn(connID uint64) {
 
 	if ok {
 		clientSideSession.closeConn()
-		log.Printf("remote service[%s][%d] <= close client side connection, will notfiy remote sevice side",
-			session.remoteServiceID, connID)
+		log.Printf("service[%s@%p][%d] <= close client side connection, will notfiy remote sevice side",
+			session.remoteServiceID, session, connID)
 		session.notifyServiceSide(ReverseWebsockify.ActionClose, connID)
 	}
 }
@@ -247,20 +248,20 @@ func (forwarder *reverseWebsockifyForwarder) onNewClientSideConnection(remoteSer
 func (forwarder *reverseWebsockifyForwarder) listenLocalEndpoints() {
 	for remoteServiceID, remoteServiceConf := range forwarder.confRemoteServices {
 		go func(remoteServiceID, listenEndpoint string) {
-			log.Printf("remote service[%s] <= listen %s", remoteServiceID, listenEndpoint)
+			log.Printf("service[%s] <= listen %s", remoteServiceID, listenEndpoint)
 			netListener, err := net.Listen("tcp", listenEndpoint)
 			if err != nil {
-				log.Panicf("remote service[%s] error listening %s: %s", remoteServiceID, listenEndpoint, err.Error())
+				log.Panicf("service[%s] error listening %s: %s", remoteServiceID, listenEndpoint, err.Error())
 			}
 			for {
 				clientConn, err := netListener.Accept()
 				if err != nil {
-					log.Printf("remote service[%s] error accepting client connection from %s: %s",
+					log.Printf("service[%s] error accepting client connection from %s: %s",
 						remoteServiceID, listenEndpoint, err.Error())
 					continue
 				}
 				if err = forwarder.onNewClientSideConnection(remoteServiceID, clientConn); err != nil {
-					log.Printf("remote service[%s] error handling new client side connection from %s: %s",
+					log.Printf("service[%s] error handling new client side connection from %s: %s",
 						remoteServiceID, listenEndpoint, err.Error())
 					clientConn.Close()
 				}
@@ -280,16 +281,24 @@ func (forwarder *reverseWebsockifyForwarder) onNewServiceSideConnection(
 	}
 
 	forwarder.mtx.Lock()
-	// NOTE: there might exists old serviceSideSession, just let it drift away
+	oldServiceSideSessoin, _ := forwarder.serviceSideSesssions[remoteServiceID]
 	forwarder.serviceSideSesssions[remoteServiceID] = newServiceSideSession
 	forwarder.mtx.Unlock()
-	log.Printf("remote service[%s] => agent connected via websocket", remoteServiceID)
+	if oldServiceSideSessoin != nil {
+		log.Printf("service[%s@%p]: old service side session evicted as orphan",
+			remoteServiceID, oldServiceSideSessoin)
+	}
+	log.Printf("service[%s@%p] => agent connected via websocket", remoteServiceID, newServiceSideSession)
 
 	go newServiceSideSession.heartbeatPing()
 	newServiceSideSession.forwardServiceToClients()
 
 	forwarder.mtx.Lock()
-	delete(forwarder.serviceSideSesssions, remoteServiceID)
+	currentServiceSideSession, _ := forwarder.serviceSideSesssions[remoteServiceID]
+	// need to make sure we're deleting ourself, otherwise the orphaned sessions will delete the working one.
+	if currentServiceSideSession == newServiceSideSession {
+		delete(forwarder.serviceSideSesssions, remoteServiceID)
+	}
 	forwarder.mtx.Unlock()
 }
 
