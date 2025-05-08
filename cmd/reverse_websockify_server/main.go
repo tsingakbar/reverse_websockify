@@ -18,6 +18,7 @@ import (
 )
 
 type configRemoteService struct {
+	NickName            string `toml:"nickname"`
 	LocalListenEndpoint string `toml:"local_listen_endpoint"`
 }
 
@@ -329,6 +330,7 @@ func (forwarder *reverseWebsockifyForwarder) serviceSideWebsocketHandler(w http.
 
 func (forwarder *reverseWebsockifyForwarder) statHandler(w http.ResponseWriter, _ *http.Request) {
 	type statType struct {
+		NickName             string    `json:"nickname"`
 		ForwardAt            string    `json:"forward_at"`
 		ServiceSideConnSince time.Time `json:"service_connection_since"`
 		ServiceSideConnInfo  string    `json:"service_connection_info"`
@@ -338,6 +340,7 @@ func (forwarder *reverseWebsockifyForwarder) statHandler(w http.ResponseWriter, 
 
 	for serviceID, confRemoteService := range forwarder.confRemoteServices {
 		var stat = statType{
+			NickName:  confRemoteService.NickName,
 			ForwardAt: confRemoteService.LocalListenEndpoint,
 		}
 
